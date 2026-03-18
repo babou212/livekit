@@ -109,6 +109,7 @@ func (b *Buffer) Bind(params webrtc.RTPParameters, codec webrtc.RTPCodecCapabili
 		return nil
 	}
 
+	b.logger.Debugw("DBG, binding track", "codec", codec) // REMOVE
 	if err := b.BufferBase.BindLocked(params, codec, bitrates); err != nil {
 		return err
 	}
@@ -148,7 +149,10 @@ func (b *Buffer) Write(pkt []byte) (n int, err error) {
 	now := mono.UnixNano()
 	if b.twcc != nil && b.twccExtID != 0 {
 		if ext := rtpPacket.GetExtension(b.twccExtID); ext != nil {
+			b.logger.Debugw("DBG, pushing packet to twcc", "ssrc", rtpPacket.SSRC, "seq", binary.BigEndian.Uint16(ext[0:2]), "marker", rtpPacket.Marker) // REMOVE
 			b.twcc.Push(rtpPacket.SSRC, binary.BigEndian.Uint16(ext[0:2]), now, rtpPacket.Marker)
+		} else {
+			b.logger.Debugw("DBG, no twcc extension found for packet", "ssrc", rtpPacket.SSRC, "seq", rtpPacket.SequenceNumber, "marker", rtpPacket.Marker)
 		}
 	}
 
@@ -156,6 +160,7 @@ func (b *Buffer) Write(pkt []byte) (n int, err error) {
 	// the Bind will not be called to consume the pending packets. More details in https://github.com/pion/webrtc/pull/2816
 	if rtpPacket.SSRC == 0 {
 		b.Unlock()
+		b.logger.Debugw("DBG, packet ssrc is 0", "ssrc", rtpPacket.SSRC, "seq", rtpPacket.SequenceNumber, "marker", rtpPacket.Marker, "length", len(rtpPacket.Payload))
 		return
 	}
 
@@ -163,6 +168,7 @@ func (b *Buffer) Write(pkt []byte) (n int, err error) {
 	if pb := b.primaryBufferForRTX; pb != nil {
 		b.Unlock()
 
+		b.logger.Debugw("DBG, sending packet to primary", "ssrc", rtpPacket.SSRC, "seq", rtpPacket.SequenceNumber, "marker", rtpPacket.Marker, "length", len(rtpPacket.Payload))
 		// skip padding only packets
 		if rtpPacket.Padding && len(rtpPacket.Payload) == 0 {
 			return
@@ -176,6 +182,7 @@ func (b *Buffer) Write(pkt []byte) (n int, err error) {
 		packet := make([]byte, len(pkt))
 		copy(packet, pkt)
 
+		b.logger.Debugw("DBG, caching packet", "ssrc", rtpPacket.SSRC, "seq", rtpPacket.SequenceNumber, "marker", rtpPacket.Marker, "length", len(rtpPacket.Payload))
 		if len(b.pPackets) == 0 {
 			b.logger.Debugw("received first packet")
 		}
@@ -194,7 +201,6 @@ func (b *Buffer) Write(pkt []byte) (n int, err error) {
 		b.Unlock()
 		return
 	}
-
 	b.calc(pkt, &rtpPacket, now, false, false)
 	b.Unlock()
 	return
