@@ -1942,6 +1942,7 @@ func (p *ParticipantImpl) setupSignalling() {
 func (p *ParticipantImpl) setupTransportManager() error {
 	p.twcc = twcc.NewTransportWideCCResponder(mono.UnixNano())
 	p.twcc.OnFeedback(func(pkts []rtcp.Packet) {
+		p.params.Logger.Infow("DBG, twcc feedback", "pkts", pkts) // REMOVE
 		p.postRtcp(pkts)
 	})
 	ath := AnyTransportHandler{p: p}
